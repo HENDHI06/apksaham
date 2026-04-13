@@ -2,82 +2,48 @@ import streamlit as st
 import pandas as pd
 from firebase_admin import credentials, initialize_app, db, _apps
 
-# --- KONFIGURASI HALAMAN ---
-st.set_page_config(
-    page_title="Scanner Saham Low Price",
-    page_icon="📈",
-    layout="wide"
-)
+# --- CONFIG ---
+st.set_page_config(page_title="Scanner Saham Pro", layout="wide")
 
-# --- FUNGSI INISIALISASI FIREBASE ---
 def init_firebase():
     if not _apps:
         try:
-            # Mengambil data dari menu "Manage app" -> "Settings" -> "Secrets"
+            # Ambil data dari Secrets
             fb_conf = st.secrets["firebase"]
-            
-            # Konversi Secret menjadi dictionary yang dikenali Firebase
-            # Kita gunakan dict(fb_conf) agar format private_key otomatis tertangani
             fb_dict = dict(fb_conf)
             
-            # Inisialisasi kredensial
-            cred = credentials.Certificate(fb_dict)
+            # Memperbaiki format private_key agar terbaca sistem
+            fb_dict["private_key"] = fb_dict["private_key"].replace("\\n", "\n")
             
-            # Masukkan URL Realtime Database kamu di sini
+            cred = credentials.Certificate(fb_dict)
             initialize_app(cred, {
-                'databaseURL': 'SILAKAN_GANTI_DENGAN_URL_FIREBASE_KAMU'
+                'databaseURL': 'https://scannersaham-b45ed-default-rtdb.firebaseio.com/'
             })
         except Exception as e:
-            st.error(f"❌ Gagal koneksi ke Firebase: {e}")
-            st.info("Pastikan menu 'Secrets' di Streamlit Cloud sudah diisi dengan benar.")
+            st.error(f"Koneksi Firebase Gagal: {e}")
 
 init_firebase()
 
-# --- FUNGSI AMBIL DATA ---
-def load_data():
-    try:
-        ref = db.reference('saham_low_price')
-        data = ref.get()
-        if data:
-            # Mengubah hasil dari Firebase ke DataFrame Pandas
-            df = pd.DataFrame.from_dict(data, orient='index')
-            # Merapikan tampilan kolom
-            df.index.name = 'Ticker'
-            df.reset_index(inplace=True)
-            return df
-        return pd.DataFrame()
-    except Exception as e:
-        st.error(f"⚠️ Error saat mengambil data: {e}")
-        return pd.DataFrame()
+st.title("📊 Hasil Scan Saham < 500")
 
-# --- TAMPILAN UTAMA ---
-st.title("🚀 Scanner Saham di Bawah 500")
-st.markdown("Aplikasi ini menampilkan hasil scan teknikal (EMA20 & Stoch RSI) untuk saham-saham murah.")
+# Ambil data dari tabel 'signals' (sesuai log laptop kamu tadi)
+try:
+    ref = db.reference('signals')
+    data = ref.get()
 
-df = load_data()
+    if data:
+        # Ubah ke DataFrame
+        df = pd.DataFrame.from_dict(data, orient='index')
+        df.index.name = 'Ticker'
+        df.reset_index(inplace=True)
 
-if not df.empty:
-    st.success(f"Ditemukan **{len(df)}** saham dalam pantauan.")
-    
-    # Menambahkan filter sederhana di sidebar
-    st.sidebar.header("Filter")
-    pilihan_signal = st.sidebar.multiselect("Pilih Signal:", options=df['Signal'].unique(), default=df['Signal'].unique())
-    
-    # Filter data berdasarkan pilihan
-    df_filtered = df[df['Signal'].isin(pilihan_signal)]
-    
-    # Menampilkan tabel
-    st.dataframe(
-        df_filtered.style.apply(lambda x: ['background-color: #004d00' if v == 'BUY' else '' for v in x], subset=['Signal']),
-        use_container_width=True
-    )
-    
-    if st.button('🔄 Perbarui Tampilan'):
-        st.rerun()
-else:
-    st.warning("⚠️ Belum ada data di database.")
-    st.info("Silakan jalankan file 'scanner_saham.py' di laptop kamu terlebih dahulu untuk mengirim data ke Firebase.")
+        # Styling
+        st.success(f"Berhasil memuat {len(df)} saham.")
+        st.dataframe(df, use_container_width=True)
+    else:
+        st.warning("Database kosong. Jalankan scanner di laptop dulu!")
+except Exception as e:
+    st.error(f"Gagal mengambil data: {e}")
 
-# --- FOOTER ---
-st.markdown("---")
-st.caption("Data diperbarui berdasarkan scan terakhir dari laptop.")
+if st.button("🔄 Refresh"):
+    st.rerun()
