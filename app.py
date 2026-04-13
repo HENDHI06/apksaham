@@ -2,65 +2,82 @@ import streamlit as st
 import pandas as pd
 from firebase_admin import credentials, initialize_app, db, _apps
 
-# Konfigurasi Tampilan
-st.set_page_config(page_title="IHSG Scanner", layout="wide")
+# --- KONFIGURASI HALAMAN ---
+st.set_page_config(
+    page_title="Scanner Saham Low Price",
+    page_icon="📈",
+    layout="wide"
+)
 
-st.title("📊 Scanner Saham < 500")
-
-# Fungsi koneksi ke Firebase via Secrets
+# --- FUNGSI INISIALISASI FIREBASE ---
 def init_firebase():
     if not _apps:
-        # Mengambil data dari menu "Manage app" -> "Secrets"
         try:
+            # Mengambil data dari menu "Manage app" -> "Settings" -> "Secrets"
             fb_conf = st.secrets["firebase"]
-            fb_dict = {
-                "type": fb_conf["type"],
-                "project_id": fb_conf["project_id"],
-                "private_key_id": fb_conf["private_key_id"],
-                "private_key": fb_conf["private_key"].replace('\\n', '\n'),
-                "client_email": fb_conf["client_email"],
-                "client_id": fb_conf["client_id"],
-                "auth_uri": fb_conf["auth_uri"],
-                "token_uri": fb_conf["token_uri"],
-                "auth_provider_x509_cert_url": fb_conf["auth_provider_x509_cert_url"],
-                "client_x509_cert_url": fb_conf["client_x509_cert_url"]
-            }
+            
+            # Konversi Secret menjadi dictionary yang dikenali Firebase
+            # Kita gunakan dict(fb_conf) agar format private_key otomatis tertangani
+            fb_dict = dict(fb_conf)
+            
+            # Inisialisasi kredensial
             cred = credentials.Certificate(fb_dict)
+            
+            # Masukkan URL Realtime Database kamu di sini
             initialize_app(cred, {
-                'databaseURL': 'MASUKKAN_URL_FIREBASE_KAMU_DISINI'
+                'databaseURL': 'SILAKAN_GANTI_DENGAN_URL_FIREBASE_KAMU'
             })
         except Exception as e:
-            st.error(f"Gagal koneksi Secrets: {e}")
+            st.error(f"❌ Gagal koneksi ke Firebase: {e}")
+            st.info("Pastikan menu 'Secrets' di Streamlit Cloud sudah diisi dengan benar.")
 
 init_firebase()
 
-# Fungsi ambil data
+# --- FUNGSI AMBIL DATA ---
 def load_data():
     try:
         ref = db.reference('saham_low_price')
         data = ref.get()
         if data:
-            # Mengubah hasil scan ke DataFrame
+            # Mengubah hasil dari Firebase ke DataFrame Pandas
             df = pd.DataFrame.from_dict(data, orient='index')
+            # Merapikan tampilan kolom
+            df.index.name = 'Ticker'
+            df.reset_index(inplace=True)
             return df
         return pd.DataFrame()
     except Exception as e:
-        st.error(f"Gagal ambil data dari Database: {e}")
+        st.error(f"⚠️ Error saat mengambil data: {e}")
         return pd.DataFrame()
 
-# Tampilan Utama
+# --- TAMPILAN UTAMA ---
+st.title("🚀 Scanner Saham di Bawah 500")
+st.markdown("Aplikasi ini menampilkan hasil scan teknikal (EMA20 & Stoch RSI) untuk saham-saham murah.")
+
 df = load_data()
 
 if not df.empty:
-    st.write(f"Ditemukan **{len(df)}** saham sesuai kriteria.")
+    st.success(f"Ditemukan **{len(df)}** saham dalam pantauan.")
     
-    # Percantik Tabel
+    # Menambahkan filter sederhana di sidebar
+    st.sidebar.header("Filter")
+    pilihan_signal = st.sidebar.multiselect("Pilih Signal:", options=df['Signal'].unique(), default=df['Signal'].unique())
+    
+    # Filter data berdasarkan pilihan
+    df_filtered = df[df['Signal'].isin(pilihan_signal)]
+    
+    # Menampilkan tabel
     st.dataframe(
-        df.style.highlight_max(axis=0, subset=['Signal']), 
+        df_filtered.style.apply(lambda x: ['background-color: #004d00' if v == 'BUY' else '' for v in x], subset=['Signal']),
         use_container_width=True
     )
     
-    if st.button('🔄 Refresh Data'):
+    if st.button('🔄 Perbarui Tampilan'):
         st.rerun()
 else:
-    st.warning("Belum ada data di database. Jalankan 'scanner_saham.py' di laptop kamu dulu.")
+    st.warning("⚠️ Belum ada data di database.")
+    st.info("Silakan jalankan file 'scanner_saham.py' di laptop kamu terlebih dahulu untuk mengirim data ke Firebase.")
+
+# --- FOOTER ---
+st.markdown("---")
+st.caption("Data diperbarui berdasarkan scan terakhir dari laptop.")
