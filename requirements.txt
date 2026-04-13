@@ -1,0 +1,6 @@
+streamlit
+firebase-admin
+pandas
+pandas_ta
+yfinance
+openpyxl
