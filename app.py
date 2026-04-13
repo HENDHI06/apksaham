@@ -16,8 +16,10 @@ def init_firebase():
             fb_dict["private_key"] = fb_dict["private_key"].replace("\\n", "\n")
             
             cred = credentials.Certificate(fb_dict)
+            
+            # URL SUDAH DISESUAIKAN KE ASIA (SINGAPURA)
             initialize_app(cred, {
-                'databaseURL': 'https://scannersaham-b45ed-default-rtdb.firebaseio.com/'
+                'databaseURL': 'https://scannersaham-b45ed-default-rtdb.asia-southeast1.firebasedatabase.app'
             })
         except Exception as e:
             st.error(f"Koneksi Firebase Gagal: {e}")
@@ -26,22 +28,20 @@ init_firebase()
 
 st.title("📊 Hasil Scan Saham < 500")
 
-# Ambil data dari tabel 'signals' (sesuai log laptop kamu tadi)
 try:
+    # Pastikan 'signals' sesuai dengan yang kamu kirim dari laptop
     ref = db.reference('signals')
     data = ref.get()
 
     if data:
-        # Ubah ke DataFrame
         df = pd.DataFrame.from_dict(data, orient='index')
         df.index.name = 'Ticker'
         df.reset_index(inplace=True)
 
-        # Styling
-        st.success(f"Berhasil memuat {len(df)} saham.")
+        st.success(f"Berhasil memuat {len(df)} saham dari server Asia.")
         st.dataframe(df, use_container_width=True)
     else:
-        st.warning("Database kosong. Jalankan scanner di laptop dulu!")
+        st.warning("Database masih kosong di server Asia. Jalankan scanner di laptop sekali lagi!")
 except Exception as e:
     st.error(f"Gagal mengambil data: {e}")
 
