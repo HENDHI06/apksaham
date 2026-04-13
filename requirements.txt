@@ -1,6 +1,3 @@
 streamlit
 firebase-admin
 pandas
-pandas-ta
-yfinance
-openpyxl
